@@ -1,0 +1,330 @@
+xp = {}
+xp.lvl = 20
+xp.player_xp = {}
+xp.player_levels = {}
+xp.xp_hud = {}
+xp.level_hud = {}
+
+xp.xp_file = minetest.get_worldpath() .. "/xp"
+xp.lvl_file = minetest.get_worldpath() .. "/levels"
+
+xp.custom_level_system = false
+
+hud.register("xp", {
+	hud_elem_type = "statbar",
+	position = { x = 1, y = 1 },
+	text = "xp_xp.png",
+	background = nil,
+	number = 20,
+	max = 20,
+	size = { HUD_SB_SIZE },
+	offset = { x = -250, y = -30 },
+})
+hud.register("level", {
+	hud_elem_type = "text",
+	position = { x = 1, y = 1 },
+	text = "1",
+	background = "xp_xp.png",
+	number = 0xFFFFFF,
+--	max = 20,
+	alignment = {x=0.5,y=1},
+--	size = { x=24, y=24 },
+	offset = { x = -250, y = -60 },
+})
+
+
+function xp.set_level_hud_text(player, str)
+	--player:hud_change(xp.level_hud[player:get_player_name()], "text", str)
+	hud.change_item(player, "level", {text = str})
+end
+
+function xp.get_xp(lvl, x)
+	return (xp.lvl * lvl) / x
+end
+
+function xp.add_xp(player, num)
+	if xp.player_xp[player:get_player_name()] then
+		xp.player_xp[player:get_player_name()] = xp.player_xp[player:get_player_name()] + num
+	else
+		xp.player_xp[player:get_player_name()] = num
+		if not xp.player_levels[player:get_player_name()] then
+			xp.player_levels[player:get_player_name()] = 1
+		end
+	end
+
+	if num > 0 then
+		cmsg.push_message_player(player, "[xp] +"..tostring(num))
+	end
+
+	if xp.player_levels[player:get_player_name()] then
+		if xp.player_xp[player:get_player_name()] > xp.lvl*xp.player_levels[player:get_player_name()] then
+			xp.player_xp[player:get_player_name()] = xp.player_xp[player:get_player_name()] - xp.lvl*xp.player_levels[player:get_player_name()]
+			xp.add_lvl(player)
+		end
+	else
+		xp.player_levels[player:get_player_name()] = 1
+	end
+	print("[info] xp for player ".. player:get_player_name() .. " " .. xp.player_xp[player:get_player_name()].."/"..xp.lvl*xp.player_levels[player:get_player_name()].." = " .. (xp.player_xp[player:get_player_name()])/(xp.lvl*xp.player_levels[player:get_player_name()]))
+
+	minetest.log("[MOD] xp:  " .. player:get_player_name() .. " " .. xp.player_xp[player:get_player_name()].."/"..xp.lvl*xp.player_levels[player:get_player_name()].." = " .. (xp.player_xp[player:get_player_name()])/(xp.lvl*xp.player_levels[player:get_player_name()]))
+
+	--player:hud_change(xp.xp_hud[player:get_player_name()], "number", 20*((xp.player_xp[player:get_player_name()])/(xp.lvl*xp.player_levels[player:get_player_name()])))
+	--hud.change_item(xp.xp_hud[player:get_player_name()], "xp", {number = 20*( (xp.player_xp[player:get_player_name()]) / (xp.lvl*xp.player_levels[player:get_player_name()]) ) })
+	hud.change_item(player, "xp", {number = 20*( (xp.player_xp[player:get_player_name()]) / (xp.lvl*xp.player_levels[player:get_player_name()]) ) })
+
+	xp.save_xp()
+	xp.save_levels()
+end
+
+function xp.add_lvl(player)
+	if xp.player_levels[player:get_player_name()] then
+		xp.player_levels[player:get_player_name()] = xp.player_levels[player:get_player_name()] + 1
+	else
+		xp.player_levels[player:get_player_name()] = 1
+	end
+	xp.save_levels()
+	if not(xp.custom_level_system) then
+		--player:hud_change(xp.level_hud[player:get_player_name()], "text", xp.player_levels[player:get_player_name()])
+		--hud.change_item(xp.level_hud[player:get_player_name()], "level", {text = xp.player_levels[player:get_player_name()]})
+		hud.change_item(player, "level", {text = xp.player_levels[player:get_player_name()]})
+	end
+	cmsg.push_message_player(player, "Level up! You are now Level " .. tostring(xp.player_levels[player:get_player_name()]))
+end
+
+minetest.register_on_joinplayer(function(player)
+	if not player then
+		return
+	end
+	if not xp.player_xp[player:get_player_name()] and not xp.player_levels[player:get_player_name()] then
+		xp.player_xp[player:get_player_name()] = 0
+		xp.player_levels[player:get_player_name()] = 1
+	end
+
+	hud.change_item(player, "xp", {number = 20*( (xp.player_xp[player:get_player_name()]) / (xp.lvl*xp.player_levels[player:get_player_name()]) ) })
+	hud.change_item(player, "level", {text = xp.player_levels[player:get_player_name()]})
+
+
+--		xp.xp_hud[player:get_player_name()] = player:hud_add({
+--			hud_elem_type = "statbar",
+--			position = {x=0.5,y=1.0},
+--			size = {x=16, y=16},
+--		   	offset = {x=-(32*8+16), y=-(48*2+16)},
+--			text = "xp_xp.png",
+--			number = 20*((xp.player_xp[player:get_player_name()])/(xp.lvl*xp.player_levels[player:get_player_name()])),
+--		})
+--[[
+		    hud.register("xp", {
+		        hud_elem_type = "statbar",
+		        position = { x = 1, y = 1 },
+		        text = "xp_xp.png",
+--		        background = nil,
+		        number = 20*((xp.player_xp[player:get_player_name()])/(xp.lvl*xp.player_levels[player:get_player_name()])),
+--		        max = 20,
+		        size = { x=24, y=24 },
+		        offset = { x = -250, y = -30 },
+		    })
+
+--		xp.level_hud[player:get_player_name()] = player:hud_add({
+--			hud_elem_type = "text",
+--			position = {x=0.5,y=1},
+--			text = xp.player_levels[player:get_player_name()],
+--			number = 0xFFFFFF,
+--			alignment = {x=0.5,y=1},
+--			offset = {x=0, y=-(48*2+16)},
+--		})
+		    hud.register("level", {
+		        hud_elem_type = "text",
+		        position = { x = 1, y = 1 },
+		        text = xp.player_levels[player:get_player_name()],
+--		        background = "xp_xp.png",
+		        number = 0xFFFFFF,
+--		        max = 20,
+			alignment = {x=0.5,y=1},
+--		        size = { x=24, y=24 },
+		        offset = { x = -250, y = -60 },
+		    })
+--
+	else
+		xp.player_xp[player:get_player_name()] = 0
+		xp.player_levels[player:get_player_name()] = 1
+--		xp.xp_hud[player:get_player_name()] = player:hud_add({
+--			hud_elem_type = "statbar",
+--			position = {x=0.5,y=1.0},
+--			size = {x=16, y=16},
+--		   	offset = {x=-(32*8+16), y=-(48*2+16)},
+--			text = "xp_xp.png",
+--			number = 0,
+--		})
+--
+		    hud.register("xp", {
+		        hud_elem_type = "statbar",
+		        position = { x = 1, y = 1 },
+		        text = "xp_xp.png",
+--		        background = nil,
+		        number = 0,
+--		        max = 20,
+		        size = { x=24, y=24 },
+		        offset = { x = -250, y = -30 },
+		    })
+--		
+--		xp.level_hud[player:get_player_name()] = player:hud_add({
+--			hud_elem_type = "text",
+--			position = {x=0.5,y=1},
+--			text = "1",
+--			number = 0xFFFFFF,
+--			alignment = {x=0.5,y=1},
+--			offset = {x=0, y=-(48*2+16)},
+--		})
+--
+		    hud.register("level", {
+		        hud_elem_type = "text",
+		        position = { x = 1, y = 1 },
+		        text = "1",
+--		        background = "xp_xp.png",
+		        number = 0xFFFFFF,
+--		        max = 20,
+			alignment = {x=0.5,y=1},
+--		        size = { x=24, y=24 },
+		        offset = { x = -250, y = -60 },
+		    })
+--
+	end
+--]]
+end)
+
+function xp.load_xp()
+	local input = io.open(xp.xp_file, "r")
+	if input then
+		local str = input:read()
+		if str then
+			for k, v in str.gmatch(str,"(%w+)=(%w+)") do
+    			xp.player_xp[k] = tonumber(v)
+			end
+		end
+		io.close(input)
+	end
+end
+
+function xp.save_xp()
+	if xp.player_xp then
+		local output = io.open(xp.xp_file, "w")
+		local str = ""
+		for k, v in pairs(xp.player_xp) do
+			str = str .. k .. "=" .. v .. ","
+		end
+		str = str:sub(1, #str - 1)
+		output:write(str)
+		io.close(output)
+	end
+end
+
+function xp.load_levels()
+	local input = io.open(xp.lvl_file, "r")
+	if input then
+		local str = input:read()
+		if str then
+			for k, v in str.gmatch(str,"(%w+)=(%w+)") do
+    				xp.player_levels[k] = tonumber(v)
+			end
+		end
+		io.close(input)
+	end
+end
+
+function xp.save_levels()
+	if xp.player_xp then
+		local output = io.open(xp.lvl_file, "w")
+		local str = ""
+		for k, v in pairs(xp.player_levels) do
+			str = str .. k .. "=" .. v .. ","
+		end
+		str = str:sub(1, #str - 1)
+		output:write(str)
+		io.close(output)
+	end
+end
+
+function xp.explorer_xp()
+	minetest.register_on_generated(function(minp, maxp, blockseed)
+		local center={x=minp.x+math.abs(minp.x-maxp.x),y=minp.y+math.abs(minp.y-maxp.y),z=minp.z+math.abs(minp.z-maxp.z)}
+		local nearest=nil
+		for i,v in pairs(minetest.get_connected_players()) do
+			local pos =v:getpos()
+			local dist=vector.distance(center, pos)
+			if nearest==nil then			
+				nearest={name=v,dist=dist}
+			elseif dist  < nearest.dist then  
+				nearest.dist = dist
+				nearest.name=v			
+			end
+		end
+		if nearest ~= nil then
+			xp.add_xp(nearest.name, 0.1)
+		end
+	end) 
+end
+
+function xp.crafter_xp()
+	minetest.register_on_craft(function(itemstack, player)
+--		local craft_xp = itemstack:get_definition().craft_xp
+--		if craft_xp then
+--			xp.add_xp(player, craft_xp)
+			xp.add_xp(player, 1)
+--		end
+	end)
+end
+
+function xp.miner_xp()
+	minetest.register_on_dignode(function(pos, oldnode, digger)
+
+--		local miner_xp = minetest.registered_nodes[oldnode.name].miner_xp
+		local node_xp = 0
+		if string.find(oldnode.name, ":stone_") then
+			node_xp = 2
+		elseif string.find(oldnode.name, ":ore_") then
+			node_xp = 4
+		elseif string.find(oldnode.name, "lava") then
+			node_xp = -1
+		else
+			node_xp = 1
+		end
+		local player = digger:get_player_name()
+		local player_lvls = proficiencies.lvls[player]
+--		if not miner_xp then
+--		elseif miner_xp.rm then
+--			if player_lvls then
+--				xp.add_xp(digger, (player_lvls["miner"]-1))
+--			end
+--		elseif miner_xp.lvls then
+			if player_lvls and player_lvls["miner"] > 5 then
+--				xp.add_xp(digger,xp.get_xp(xp.player_levels[player], 14))
+				xp.add_xp(digger,xp.get_xp(xp.player_levels[player], node_xp))
+			end
+--		elseif miner_xp.rnd then
+--			if math.random(miner_xp.rnd) == miner_xp.rnd then
+--				xp.add_xp(digger, miner_xp.xp)	
+--			end
+--		elseif miner_xp.xp then 
+--			xp.add_xp(digger, miner_xp.xp)
+			xp.add_xp(digger, node_xp)
+--		end
+	end)
+end
+
+function xp.builder_xp()
+	minetest.register_on_placenode(function(pos, newnode, placer)
+--		local builder_xp = minetest.registered_nodes[newnode.name].builder_xp
+--		if builder_xp then
+--			xp.add_xp(placer, builder_xp)
+			xp.add_xp(placer, 1)
+--		end
+	end)
+end
+
+xp.miner_xp()
+xp.crafter_xp()
+xp.explorer_xp()
+xp.builder_xp()
+
+xp.load_xp()
+xp.load_levels()
